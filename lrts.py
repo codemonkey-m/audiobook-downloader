@@ -11,7 +11,15 @@ from threading import Thread
 
 def main():
     bookId = sys.argv[1]
-    getSections(bookId, 0, 2000)
+
+    page = 0
+    while True:
+        if not getSections(bookId, page, 2000):
+            break
+
+        page += 1
+
+    print("全部下载完成!")
 
 
 def getSections(bookId, index=0, totalCount=1):
@@ -21,6 +29,7 @@ def getSections(bookId, index=0, totalCount=1):
 
     url = f'http://www.lrts.me/ajax/book/{bookId}/{index}/{totalCount}'
 
+    print("开始拉取第%d页数据"%(index+1))
     print(url)
     r = requests.post(url)
 
@@ -31,10 +40,8 @@ def getSections(bookId, index=0, totalCount=1):
         jsonstr = html.unescape(r.content.decode('utf-8'))
         resources = json.loads(jsonstr)['data']['data']
         if not resources:
-            print('Error, no result')
-            return
+            return False
 
-        print(resources)
         print('Collecting mp3 links ...')
         for resource in resources:
             resourceCount += 1
@@ -47,12 +54,11 @@ def getSections(bookId, index=0, totalCount=1):
                 foundUrlCount += 1
                 fileset.add((u, n))
 
-    print(fileset)
-    print(len(fileset))
+    if len(fileset) == 0:
+        return False
+    
     print(f'Total: {resourceCount}, free: {freeCount}, found: {foundUrlCount}')
-
-    print('Press Enter to start downloading ...')
-    input()
+    print("开始下载...")
 
     threads = []
     for mp3Link, mp3Name in fileset:
@@ -64,7 +70,8 @@ def getSections(bookId, index=0, totalCount=1):
     for t in threads:
         t.join()
 
-    print('Download complete!')
+    print('本页下载完成!\n')
+    return True
 
 
 def getFileUrl(bookId, resourceId):
@@ -78,10 +85,13 @@ def getFileUrl(bookId, resourceId):
 
 
 def downloadFile(url, folder, fileName, ext='.mp3'):
-    r = requests.get(url)
-    if r.status_code == 200:
-        with open(f'{folder}/{fileName}{ext}', 'wb') as f:
-            f.write(r.content)
+    try:
+        r = requests.get(url)
+        if r.status_code == 200:
+            with open(f'{folder}/{fileName}{ext}', 'wb') as f:
+                f.write(r.content)
+    except:
+        downloadFile(url, folder, fileName)
 
 
 def getPlayList(resourceType, resourceId, sections='', flow=''):
